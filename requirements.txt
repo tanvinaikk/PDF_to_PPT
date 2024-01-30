@@ -10,4 +10,10 @@ numpy
 pandas
 gensim
 networkx
-
+keras scikit-learn
+tensorflow
+pagerank
+pranker
+openai==0.28
+typing_extensions
+typing

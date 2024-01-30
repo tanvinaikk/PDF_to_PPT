@@ -1,11 +1,15 @@
 import os
 
 from cs50 import SQL
-from flask import Flask, redirect, render_template, request, session
+from flask import Flask, redirect, render_template, request, session, send_file
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
+from pptx import Presentation
+from io import BytesIO
 
 from helpers import apology, login_required, process_pdf
+from utils.generate_ppt import generate_presentation
+from utils.gpt import gpt_summarise
 
 # Configure CS50 Library to use SQLite database
 db = SQL("sqlite:///tanvi.db")
@@ -71,9 +75,32 @@ def upload():
 
         # Process the PDF
         text = process_pdf(pdf_file_path)  
+
+        # Call the summarization function
+        result = gpt_summarise(text)
+
+        # Print or log the result
+        print("ChatGPT Summarization Result:", result)
+
+        # Pass the 'text' to generate_presentation function
+        ppt_buffer = generate_presentation(result)
+
+        # Save ppt_buffer to session for later use
+        session['ppt_buffer'] = ppt_buffer.getvalue()
             
-        return render_template("output.html", text=text)  
+        return render_template("download.html", text=text)  
     return render_template("index.html")  
+
+
+@app.route("/download")
+@login_required
+def download_presentation():
+    """ Downloads ppt as an output """
+    
+    # Retrieve ppt_buffer from session
+    ppt_buffer = BytesIO(session.get('ppt_buffer', b''))
+
+    return send_file(ppt_buffer, download_name="Output.pptx", as_attachment=True)
 
 
 @app.route("/login", methods=["GET", "POST"])
