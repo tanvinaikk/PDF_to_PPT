@@ -1,18 +1,14 @@
 import os
 
-from cs50 import SQL
-from flask import Flask, redirect, render_template, request, session, send_file
+
+from flask import Flask, redirect, url_for, render_template, request, session, send_file
 from flask_session import Session
-from werkzeug.security import check_password_hash, generate_password_hash
-from pptx import Presentation
 from io import BytesIO
 
-from helpers import apology, login_required, process_pdf
+from helpers import process_pdf
 from utils.generate_ppt import generate_presentation
-from utils.gpt import gpt_summarise
+from utils.gpt import gpt_divide
 
-# Configure CS50 Library to use SQLite database
-db = SQL("sqlite:///tanvi.db")
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
@@ -54,7 +50,6 @@ def allowed_file(filename):
 
 
 @app.route("/")
-@login_required
 def index():
     """Homepage"""
 
@@ -62,10 +57,13 @@ def index():
 
 
 @app.route("/upload", methods = ['POST'])
-@login_required
 def upload(): 
     """ Takes pdf as input """
-    if request.method == 'POST':   
+    if request.method == 'POST':  
+
+        if 'file' not in request.files:
+            return 'No file part', 400
+
         f = request.files['file'] 
         # f.save(f.filename) 
 
@@ -77,10 +75,10 @@ def upload():
         text = process_pdf(pdf_file_path)  
 
         # Call the summarization function
-        result = gpt_summarise(text)
+        result = gpt_divide(text)
 
         # Print or log the result
-        print("ChatGPT Summarization Result:", result)
+        print("ChatGPT Sections Result:", result)
 
         # Pass the 'text' to generate_presentation function
         ppt_buffer = generate_presentation(result)
@@ -88,12 +86,10 @@ def upload():
         # Save ppt_buffer to session for later use
         session['ppt_buffer'] = ppt_buffer.getvalue()
             
-        return render_template("download.html", text=text)  
+        return redirect(url_for('download_presentation')) 
     return render_template("index.html")  
 
-
 @app.route("/download")
-@login_required
 def download_presentation():
     """ Downloads ppt as an output """
     
@@ -102,105 +98,9 @@ def download_presentation():
 
     return send_file(ppt_buffer, download_name="Output.pptx", as_attachment=True)
 
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    """Log user in"""
-
-    # Forget any user_id
-    session.clear()
-
-    # User reached route via POST (as by submitting a form via POST)
-    if request.method == "POST":
-
-        # Ensure username was submitted
-        if not request.form.get("username"):
-            return apology("must provide username", 403)
-
-        # Ensure password was submitted
-        elif not request.form.get("password"):
-            return apology("must provide password", 403)
-
-        # Query database for username
-        rows = db.execute("SELECT * FROM users WHERE username = ?",
-                          request.form.get("username"))
-
-        # Ensure username exists and password is correct
-        if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
-            return apology("invalid username and/or password", 403)
-
-        # Remember which user has logged in
-        session["user_id"] = rows[0]["id"]
-
-        # Redirect user to home page
-        return redirect("/")
-
-    # User reached route via GET (as by clicking a link or via redirect)
-    else:
-        return render_template("login.html")
-
-
-@app.route("/logout")
-def logout():
-    """Log user out"""
-
-    # Forget any user_id
-    session.clear()
-
-    # Redirect user to login form
-    return redirect("/")
-
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    """Register user"""
-
-    # User reached route via GET (as by clicking a link or via redirect -> display registration form)
-    if request.method == "GET":
-        return render_template("register.html")
-
-    # User reached route via POST (as by submitting a form via POST)
-    elif request.method == "POST":
-
-        # Validate submission
-        username = request.form.get("username")
-        password = request.form.get("password")
-
-        # Ensure username was submitted
-        if not request.form.get("username"):
-            return apology("must provide username", 400)
-
-        # Ensure password and password confirmation were submitted
-        elif not request.form.get("password"):
-            return apology("must provide password", 400)
-
-        elif not request.form.get("confirmation"):
-            return apology("password confirmation required", 403)
-
-        # Ensure password and password confirmation match
-        elif request.form.get("password") != request.form.get("confirmation"):
-            return apology("password and password confirmation must match")
-
-        # Hash password
-        hash = generate_password_hash(request.form.get("password"))
-
-        # Add UNIQUE user to database
-        try:
-            result = db.execute(
-                "INSERT INTO users (username, hash) VALUES (?, ?)", request.form.get("username"), hash)
-        except:
-            # Ensure username is unique
-            return apology("username is already registered")
-
-        # Remember which user has logged in
-        session["user_id"] = result
-
-        # Redirect user to login form
-        return redirect("/")
-
-
-
-
+if __name__ == '__main__':
+    app.run(debug=True)
+    
 
 
 
