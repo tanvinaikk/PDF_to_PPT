@@ -1,6 +1,6 @@
 from openai import OpenAI
 
-client = OpenAI(api_key="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")
+client = OpenAI(api_key="")
 import os
 import typing
 
